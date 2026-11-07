@@ -808,9 +808,37 @@ function renderTable() {
   }).join('');
 }
 
+// ── Download helper ────────────────────────────────────────────
+// Anchor must be in the DOM and the blob URL must outlive the click,
+// otherwise Safari/Firefox silently cancel the download.
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+}
+
+function libsReady(kind) {
+  if (kind === 'excel' && typeof ExcelJS === 'undefined') {
+    alert('Excel library failed to load. Check your internet connection and reload the page.');
+    return false;
+  }
+  if (kind === 'pdf' && (!window.jspdf || !window.jspdf.jsPDF)) {
+    alert('PDF library failed to load. Check your internet connection and reload the page.');
+    return false;
+  }
+  return true;
+}
+
 // ── Export Excel ────────────────────────────────────────────────
 async function exportExcel() {
   if (!entries.length) { alert('No entries to export.'); return; }
+  if (!libsReady('excel')) return;
+  try {
 
   const projRaw  = document.getElementById('f_project').value.trim();
   const fileName = (projRaw ? projRaw.replace(/[\\/:*?"<>|]/g, '_') : 'RMR_Classification') + '.xlsx';
@@ -899,15 +927,18 @@ async function exportExcel() {
   });
 
   const buffer = await wb.xlsx.writeBuffer();
-  const blob   = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  const url    = URL.createObjectURL(blob);
-  Object.assign(document.createElement('a'), { href: url, download: fileName }).click();
-  URL.revokeObjectURL(url);
+  downloadBlob(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), fileName);
+  } catch (err) {
+    console.error(err);
+    alert('Excel export failed: ' + err.message);
+  }
 }
 
 // ── Export Summary Excel (5 columns) ───────────────────────────
 async function exportSummaryExcel() {
   if (!entries.length) { alert('No entries to export.'); return; }
+  if (!libsReady('excel')) return;
+  try {
 
   const projRaw  = document.getElementById('f_project').value.trim();
   const fileName = (projRaw ? projRaw.replace(/[\\/:*?"<>|]/g, '_') : 'RMR_Classification') + '_Summary.xlsx';
@@ -959,15 +990,18 @@ async function exportSummaryExcel() {
   });
 
   const buffer = await wb.xlsx.writeBuffer();
-  const blob   = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  const url    = URL.createObjectURL(blob);
-  Object.assign(document.createElement('a'), { href: url, download: fileName }).click();
-  URL.revokeObjectURL(url);
+  downloadBlob(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), fileName);
+  } catch (err) {
+    console.error(err);
+    alert('Summary export failed: ' + err.message);
+  }
 }
 
 // ── Export PDF ─────────────────────────────────────────────────
 function exportPDF() {
   if (!entries.length) { alert('No entries to export.'); return; }
+  if (!libsReady('pdf')) return;
+  try {
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'landscape', format: 'a3', unit: 'mm' });
@@ -1059,7 +1093,11 @@ function exportPDF() {
     }
   });
 
-  doc.save(pdfFileName);
+  downloadBlob(doc.output('blob'), pdfFileName);
+  } catch (err) {
+    console.error(err);
+    alert('PDF export failed: ' + err.message);
+  }
 }
 
 // Init
